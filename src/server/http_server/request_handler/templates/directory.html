@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>%name% - Directory %directory%</title>
+    <meta charset="UTF-8">
+    <style>
+        :root {
+            --background-color: white;
+            --text-color: #333;
+            --link-color: #356da4;
+            --header-color: white;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background-color: #353535;
+                --text-color: #ddd;
+                --header-color: #2A2A2A;
+                --link-color: #d2991d;
+            }
+        }
+
+        body {
+            padding: 0;
+            margin: 0;
+            font-family: Sans-Serif,serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        header {
+            height: 50px;
+            width:100%;
+            background-color: var(--header-color);
+        }
+        header .content {
+            font-size: 32px;
+            width: 1024px;
+            margin: 0 auto;
+            padding-top: 7px;
+        }
+
+        .main {
+            width: 1024px;
+            margin: 0 auto;
+        }
+        .up {
+            display: block;
+            padding: 10px 0 20px;
+            color: var(--link-color);
+            font-weight: lighter;
+
+        }
+        a {
+            font-size: 17px;
+            color: var(--link-color);
+            text-decoration: none;
+            font-weight: bolder;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+
+        ul {
+            margin: 0;
+            padding: 0;
+            list-style-type: none;
+            li {
+                padding: 3px 0;
+            }
+        }
+
+        h2 {
+            font-weight: 500;
+        }
+
+        table {
+            width:100%;
+            th {
+                text-align: left;
+            }
+            th {
+                padding-bottom: 10px;
+            }
+        }
+        table td:nth-child(2) {
+            padding-left: 75px;
+        }
+        table td:nth-child(3), table th:nth-child(3) {
+            padding-left: 75px;
+        }
+        .version {
+         font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="content">Storm Server <span class="version">(version %version%)</span></div>
+    </header>
+    <div class="main">
+        <h2>Directory %directory%</h2>
+        %parent%
+        <table>
+            <tr>
+                <th>Name</th>
+                <th></th>
+                <th>Size</th>
+            </tr>
+            %list%
+        </table>
+    </div>
+</body>
+</html>

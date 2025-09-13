@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>404</title>
+        <style>
+            :root {
+                --background-color: white;
+                --text-color: black;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --background-color: #353535;
+                    --text-color: #ddd;
+                }
+            }
+
+            body {
+                padding: 0;
+                margin: 0;
+                font-family: Sans-Serif, serif;
+                background-color: var(--background-color);
+                color: var(--text-color);
+            }
+
+            .main {
+                width: 1024px;
+                margin: 50px auto;
+            }
+
+            ul {
+                margin: 0;
+                padding: 0;
+                list-style-type: none;
+
+                li {
+                    padding: 3px 0;
+                }
+            }
+
+            h1, h2, h3 {
+                text-align: center;
+                margin: 0;
+            }
+
+            h1 {
+                font-size: 128px;
+                margin-top: 30px;
+                margin-bottom: 30px;
+            }
+
+            h2 {
+                font-size: 46px;
+                font-weight: lighter;
+            }
+
+            h3{
+                font-size: 24px;
+                font-weight: lighter;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="main">
+            <h2>Error</h2>
+            <h1>404</h1>
+            <h3>Path '%path%' does not exist or is not readable.</h3>
+        </div>
+    </body>
+</html>
+
