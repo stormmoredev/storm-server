@@ -122,7 +122,7 @@ async fn accept_request(addr: SocketAddr,
     else {
         HttpServerSocket::Plain(stream)
     };
-
+    
     let http_stream = match HttpStream::new(rw_stream).await
     {
         Ok(stream) => stream,

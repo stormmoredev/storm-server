@@ -20,7 +20,8 @@ impl Cache {
 
     pub fn key_to_filename(key: &str) -> String {
         key.trim_start_matches('/')
-            .replace('/', "-")
+            .replace('/', "_")
+            .replace("?", "_")
     }
 
     pub fn file_path(conf: &Conf, key: &str) -> Option<PathBuf> {
@@ -50,12 +51,15 @@ impl Cache {
         query_path: &str,
         conf: &Conf,
     ) -> Option<PathBuf> {
-        let mut cache_enabled = false;
+        if !conf.cache_enabled{
+            return None;
+        }
+        let mut cache_request = false;
         let mut delete_prefix: Option<String> = None;
 
         headers.retain(|(k, v)| {
             if k.eq_ignore_ascii_case("x-cache-path-query") {
-                cache_enabled = true;
+                cache_request = true;
                 false
             } else if k.eq_ignore_ascii_case("x-cache-delete-like") {
                 delete_prefix = Some(v.clone());
@@ -69,7 +73,7 @@ impl Cache {
             Cache::delete_like(conf, prefix.as_str());
         }
 
-        if cache_enabled {
+        if cache_request {
             if let Some(path) = Cache::file_path(conf, query_path) {
                 if let Some(parent) = path.parent() {
                     let _ = fs::create_dir_all(parent);
