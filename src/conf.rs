@@ -26,7 +26,10 @@ pub struct Conf {
     pub logs_min_level: String,
     pub logs_dir: Option<PathBuf>,
     pub load_balancing_enabled: bool,
-    pub load_balancing_servers: Vec<SocketAddr>
+    pub load_balancing_servers: Vec<SocketAddr>,
+    pub cache_enabled: bool,
+    pub cache_dir: Option<PathBuf>,
+    pub cache_patterns: Vec<String>
 }
 
 impl Conf {

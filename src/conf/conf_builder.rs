@@ -34,7 +34,10 @@ impl ConfBuilder {
             logs_min_level: "info".to_string(),
             logs_dir: None,
             load_balancing_enabled: false,
-            load_balancing_servers: Vec::new()
+            load_balancing_servers: Vec::new(),
+            cache_enabled: false,
+            cache_dir: None,
+            cache_patterns: Vec::new(),
         };
 
         Self::parse_args(&mut conf, args)?;
@@ -178,6 +181,21 @@ impl ConfBuilder {
             }
             if key == "php.socket" {
                 conf.php_socket = Some(value.to_string());
+            }
+
+            if key == "cache.enabled" {
+                conf.cache_enabled = enabled_values.contains(&value.to_lowercase().as_str());
+            }
+            if key == "cache.dir" {
+                let path = Path::new(value);
+                if path.exists() && path.is_dir() {
+                    conf.cache_dir = Some(path.into());
+                } else {
+                    return Err(format!("Invalid cache dir. Line no. {}", line_no))?;
+                }
+            }
+            if key == "cache.pattern" {
+                conf.cache_patterns.push(value.to_string());
             }
 
             line_no += 1;
