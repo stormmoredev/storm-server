@@ -1,12 +1,12 @@
 use std::{error::Error, fs::File, io::BufReader, sync::Arc};
 
+use rustls::crypto::aws_lc_rs::sign::any_supported_type;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{
     server::ResolvesServerCertUsingSni,
     sign::CertifiedKey,
     ServerConfig,
 };
-use rustls::crypto::aws_lc_rs::sign::any_supported_type;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::conf::Conf;
 

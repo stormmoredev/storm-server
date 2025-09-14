@@ -5,20 +5,19 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch::Receiver;
-use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
-use uuid::Uuid;
-use crate::server::cache::{CacheStatistic, Cache};
 use crate::conf::Conf;
-use request::Request;
 use crate::logger::Logger;
+use crate::php::Php;
+use crate::server::cache::{Cache, CacheStatistic};
 use crate::server::endpoint_dispatcher::Dispatcher;
 use crate::server::http_server::cert::build_tls_config;
-use crate::server::http_server::response::Response;
-use crate::server::http_stream::{HttpStream};
-use crate::php::Php;
 use crate::server::http_server::http_server_socket::HttpServerSocket;
+use crate::server::http_server::response::Response;
+use crate::server::http_stream::HttpStream;
+use request::Request;
+use uuid::Uuid;
 
 pub mod request;
 mod response;
@@ -68,7 +67,7 @@ impl HttpServer {
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
         let listener = match TcpListener::bind(address).await {
             Ok(l) => l,
-            Err(e) => return Err(format!("Could not bind to {}", address).as_str())?
+            Err(_) => return Err(format!("Could not bind to {}", address).as_str())?
         };
         let protocol = if conf.https_enabled { "Https" } else { "Http" };
         server_logger.log_i(format!("{} server listening on port {}", protocol, conf.port).as_str());
@@ -143,7 +142,7 @@ async fn accept_request(addr: SocketAddr,
             return;
         }
         (None, 1) => confs.get(0),
-        (Some(h), 1) => confs.get(0),
+        (Some(_), 1) => confs.get(0),
         (Some(h), _) => {
             let conf = confs.iter().find(|x| x.domain.eq(h.1));
             if conf.is_none() {

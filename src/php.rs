@@ -1,8 +1,8 @@
-use std::process::Command;
-use std::{process, thread};
-use port_check::{free_local_port_in_range, is_local_port_free};
 use crate::conf::Conf;
 use crate::php::fcgi_client::FcgiClient;
+use port_check::is_local_port_free;
+use std::process::Command;
+use std::{process, thread};
 
 mod fcgi_response;
 mod fcgi_client;

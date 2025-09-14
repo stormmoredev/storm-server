@@ -1,14 +1,12 @@
+use crate::conf::Conf;
+use crate::server::cache::Cache;
+use crate::server::http_server::response::Response;
+use crate::server::http_stream::HttpStream;
 use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::fs;
-use std::io::Read;
 use urlencoding::decode;
-use crate::conf::Conf;
-use crate::server::http_stream::HttpStream;
-use crate::server::http_server::response::Response;
-use crate::server::cache::Cache;
 
 pub struct Request {
     stream:  HttpStream,

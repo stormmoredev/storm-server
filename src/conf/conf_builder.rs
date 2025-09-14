@@ -1,12 +1,12 @@
-use crate::conf::Conf;
+use crate::conf::args::args_parser::{ArgKind, ArgsParser};
 use crate::conf::conf_error::ConfError;
+use crate::conf::Conf;
 use std::error::Error;
-use std::{env, fs, u16, u64};
 use std::net::{IpAddr, SocketAddr};
-use std::path::{Path};
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use crate::conf::args::args_parser::{ArgKind, ArgsParser};
+use std::{env, fs, u16, u64};
 
 pub struct ConfBuilder { }
 
@@ -222,7 +222,7 @@ impl ConfBuilder {
     fn parse_usize(value: &str, msg: &str) -> Result<usize, Box<dyn Error>> {
         match value.parse::<usize>() {
             Ok(p) => Ok(p),
-            Err(error) => Err(error)?
+            Err(error) => Err(msg)?
         }
     }
 

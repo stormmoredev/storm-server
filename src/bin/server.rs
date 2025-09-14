@@ -1,9 +1,9 @@
 use std::{env, process};
-use tokio::sync::watch;
 use storm_server::conf::Conf;
 use storm_server::logger::Logger;
 use storm_server::php::Php;
 use storm_server::server::http_server::HttpServer;
+use tokio::sync::watch;
 
 #[tokio::main]
 async fn main() {

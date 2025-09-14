@@ -2,11 +2,11 @@ mod conf_error;
 mod conf_builder;
 mod args;
 
+use crate::conf::conf_builder::ConfBuilder;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
-use crate::conf::conf_builder::ConfBuilder;
 
 pub struct Conf {
     pub dir: String,

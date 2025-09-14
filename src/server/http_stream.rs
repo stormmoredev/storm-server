@@ -1,9 +1,8 @@
+use crate::server::http_server::http_server_socket::HttpServerSocket;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io;
-use std::io::{Read, Write};
-use std::net::SocketAddr;
-use crate::server::http_server::http_server_socket::HttpServerSocket;
+use std::io::Write;
 
 pub struct HttpStream {
     stream: HttpServerSocket,

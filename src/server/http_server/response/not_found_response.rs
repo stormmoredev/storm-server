@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use crate::server::http_server::response::Response;
 use crate::server::http_server::response::string_reader::StringReader;
+use crate::server::http_server::response::Response;
+use std::collections::HashMap;
 
 impl Response {
     pub fn not_found(query_path: &str) -> Response {

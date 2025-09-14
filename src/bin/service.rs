@@ -1,16 +1,16 @@
-use std::{fs, vec};
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
-use once_cell::sync::Lazy;
-use tokio::sync::{watch, Mutex};
-use tokio::sync::watch::Sender;
-use tokio::task::JoinHandle;
+use std::{fs, vec};
 use storm_server::conf::Conf;
 use storm_server::logger::Logger;
 use storm_server::php::Php;
 use storm_server::server::http_server::HttpServer;
+use tokio::sync::watch::Sender;
+use tokio::sync::{watch, Mutex};
+use tokio::task::JoinHandle;
 
 static COUNTER: Lazy<Arc<Mutex<i32>>> = Lazy::new(|| Arc::new(Mutex::new(0)));
 
@@ -83,19 +83,18 @@ fn main() -> windows_service::Result<()> {
 
 #[cfg(windows)]
 pub mod service {
+    use crate::run_storm_service;
     use std::ffi::OsString;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
     use std::time::Duration;
     use tokio::runtime::Runtime;
     use tokio::sync::watch::Sender;
     use tokio::task::JoinHandle;
     use windows_service::service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType};
     use windows_service::service_control_handler;
-    use windows_service::service_control_handler::{ServiceControlHandlerResult, ServiceStatusHandle};
-    use storm_server::logger::Logger;
-    use crate::run_storm_service;
+    use windows_service::service_control_handler::ServiceControlHandlerResult;
 
     pub fn my_service_main(_arguments: Vec<OsString>) {
         let running = Arc::new(AtomicBool::new(true));
@@ -107,7 +106,7 @@ pub mod service {
         let mut senders: Vec<Sender<bool>> = Vec::new();
         let threats_info = rt.
             block_on(run_storm_service(PathBuf::from("c:\\stormsrv"))).
-            unwrap_or_else(|e| Vec::new());
+            unwrap_or_else(|_|Vec::new());
         for ti in threats_info {
             join_handlers.push(ti.0);
             senders.push(ti.1);
