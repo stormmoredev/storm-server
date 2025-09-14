@@ -10,7 +10,7 @@ use tokio_rustls::TlsAcceptor;
 use crate::conf::Conf;
 use crate::logger::Logger;
 use crate::php::Php;
-use crate::server::cache::{Cache, CacheStatistic};
+use crate::server::cache::Cache;
 use crate::server::endpoint_dispatcher::Dispatcher;
 use crate::server::http_server::cert::build_tls_config;
 use crate::server::http_server::http_server_socket::HttpServerSocket;
@@ -27,15 +27,12 @@ pub mod http_server_socket;
 
 pub struct HttpServer {
     hosts_configuration: Arc<Vec<Conf>>,
-    cache_stats: Arc<Mutex<CacheStatistic>>
 }
 
 impl HttpServer {
     pub fn new(conf: Vec<Conf>) -> HttpServer {
-        let cache_stats = Arc::new(Mutex::new(CacheStatistic::new()));
         HttpServer {
-            hosts_configuration: Arc::new(conf),
-            cache_stats
+            hosts_configuration: Arc::new(conf)
         }
     }
 

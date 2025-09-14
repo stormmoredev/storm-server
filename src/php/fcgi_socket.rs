@@ -40,7 +40,7 @@ pub mod fcgi_socket {
     use std::error::Error;
     use std::process::exit;
 
-    pub fn get_socket(port: &Option<u16>, socket: &Option<String>) ->  Result<Box<dyn FcgiStream>, Box<dyn Error>> {
+    pub fn get_socket(port: &Option<u16>, _socket: &Option<String>) ->  Result<Box<dyn FcgiStream>, Box<dyn Error>> {
         if port.is_some() {
             return Ok(create_local_tcp_stream(port.unwrap()))
         }

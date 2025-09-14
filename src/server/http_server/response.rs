@@ -11,7 +11,7 @@ use std::io::Read;
 
 pub struct Response {
     status: u32,
-    content_size: Option<u64>,
+    //content_size: Option<u64>,
     headers: HashMap<String, String>,
     content: Box<dyn Read + Send>
 }

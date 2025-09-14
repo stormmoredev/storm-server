@@ -21,7 +21,6 @@ impl Response {
 
         Response {
             status: 200,
-            content_size: Some(size),
             headers,
             content: file_reader
         }

@@ -16,7 +16,6 @@ impl Response {
         Response {
             status: 404,
             headers,
-            content_size: Some(body.len() as u64),
             content: Box::new(StringReader::new(body))
         }
     }

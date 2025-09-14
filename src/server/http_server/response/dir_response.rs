@@ -82,7 +82,6 @@ impl Response {
         Response {
             status: 200,
             headers,
-            content_size: Some(body.len() as u64),
             content: Box::new(StringReader::new(body))
         }
     }

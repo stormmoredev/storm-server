@@ -28,7 +28,7 @@ async fn run_storm_service(dir: PathBuf) -> Result<Vec<(JoinHandle<i32>, Sender<
     let logger = Logger::new(Some(logs_dir));
     logger.log_i("Service is running");
     let conf_groups = get_server_confs(conf_dir).await?;
-    for (port, confs) in conf_groups {
+    for (_, confs) in conf_groups {
         if let Ok(sender) = run_http_server(confs ,logger.clone()).await {
             senders.push(sender);
         }

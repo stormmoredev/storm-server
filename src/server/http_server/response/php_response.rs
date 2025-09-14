@@ -14,8 +14,7 @@ impl Response {
                     Ok(response) => {
                        Ok(Response {
                            status: response.status(),
-                           headers: response.headers(), 
-                           content_size: None,
+                           headers: response.headers(),
                            content: Box::new(response)
                        })
                     },
@@ -39,7 +38,6 @@ impl Response {
 
         Response {
             status: 200,
-            content_size: None,
             headers,
             content: file_reader
         }

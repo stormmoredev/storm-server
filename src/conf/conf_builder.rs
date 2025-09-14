@@ -222,19 +222,12 @@ impl ConfBuilder {
     fn parse_usize(value: &str, msg: &str) -> Result<usize, Box<dyn Error>> {
         match value.parse::<usize>() {
             Ok(p) => Ok(p),
-            Err(error) => Err(msg)?
+            Err(_) => Err(msg)?
         }
     }
 
     fn parse_u16(value: &str, msg: &str) -> Result<u16, Box<dyn Error>> {
         match value.parse::<u16>() {
-            Ok(p) => Ok(p),
-            Err(error) => Err(error)?
-        }
-    }
-
-    fn parse_i16(value: &str, msg: &str) -> Result<i16, Box<dyn Error>> {
-        match value.parse::<i16>() {
             Ok(p) => Ok(p),
             Err(_) => Err(msg)?
         }

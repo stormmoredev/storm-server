@@ -73,7 +73,7 @@ impl Php {
             .args(["-v"])
             .output()
         {
-            Ok(output) => {
+            Ok(_) => {
                 thread::spawn(move || {
                     let address = format!("127.0.0.1:{}", port);
                     let _ = Command::new("php-cgi")
@@ -82,7 +82,7 @@ impl Php {
                 });
                 true
             },
-            Err(msg) => false
+            Err(_) => false
         }
     }
 }
