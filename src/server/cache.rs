@@ -2,11 +2,11 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use fs2::FileExt;
-use tokio::io::AsyncWriteExt;
 use crate::server::http_stream::HttpStream;
 
 use crate::conf::Conf;
+use std::thread::sleep;
+use std::time::Duration;
 
 pub struct Cache;
 
@@ -96,24 +96,26 @@ impl Cache {
 
     pub fn write(buf: &[u8], path: &Path) -> io::Result<()> {
         let lock_path = path.with_extension("lock");
-        let tmp_path = path.with_extension("tmp");
-
-        let lock_file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(&lock_path)?;
-        lock_file.lock_exclusive()?;
-
-        {
-            let mut tmp = File::create(&tmp_path)?;
-            tmp.write_all(buf)?;
+        // naive spin-lock using lock file creation
+        loop {
+            match OpenOptions::new().write(true).create_new(true).open(&lock_path) {
+                Ok(lock_file) => {
+                    // once lock acquired, write data and release
+                    let res = (|| {
+                        let mut file = File::create(path)?;
+                        file.write_all(buf)
+                    })();
+                    let _ = fs::remove_file(&lock_path);
+                    drop(lock_file);
+                    return res;
+                }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                    sleep(Duration::from_millis(50));
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
         }
-        fs::rename(&tmp_path, path)?;
-
-        let _ = lock_file.unlock();
-        let _ = fs::remove_file(lock_path);
-        Ok(())
     }
 
     pub async fn send_cached(stream: &mut HttpStream, path: &Path) -> io::Result<()> {

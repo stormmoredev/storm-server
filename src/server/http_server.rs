@@ -185,7 +185,9 @@ async fn handle_request(
     let id = Uuid::new_v4();
     logger.log_i(format!("{}| Request {} {}", id, request.method(), request.query_path()).as_str());
 
-    if Cache::try_serve_cached(request.stream_mut(), request.path(), request.query_path(), conf).await? {
+    let req_path = request.path().to_string();
+    let req_query_path = request.query_path().to_string();
+    if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
         logger.log_i(format!("{}| Request succeed", id).as_str());
         return Ok(());
     }
@@ -241,7 +243,9 @@ async fn get_file_path_response(request: &mut Request, conf: &Conf) -> Result<Re
 async fn dispatch_request(mut downstream: HttpStream,
                           dispatcher: Arc<Mutex<Dispatcher>>,
                           conf: &Conf) -> Result<(), Box<dyn Error>> {
-    if Cache::try_serve_cached(&mut downstream, downstream.path(), downstream.query_path(), conf).await? {
+    let ds_path = downstream.path().to_string();
+    let ds_query_path = downstream.query_path().to_string();
+    if Cache::try_serve_cached(&mut downstream, &ds_path, &ds_query_path, conf).await? {
         return Ok(());
     }
 
@@ -295,9 +299,9 @@ async fn dispatch_request(mut downstream: HttpStream,
                 }
                 head.extend_from_slice(b"\r\n");
 
-                downstream.write_all(&head).await?;
+                downstream.write(&head).await?;
                 if !body_bytes.is_empty() {
-                    downstream.write_all(body_bytes).await?;
+                    downstream.write(body_bytes).await?;
                 }
 
                 if cache_path.is_some() {
@@ -310,7 +314,7 @@ async fn dispatch_request(mut downstream: HttpStream,
                 headers_parsed = true;
             }
         } else {
-            downstream.write_all(&buff[..read_size]).await?;
+            downstream.write(&buff[..read_size]).await?;
             if cache_path.is_some() {
                 resp_buf.extend_from_slice(&buff[..read_size]);
             }
