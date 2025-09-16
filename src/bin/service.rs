@@ -27,7 +27,7 @@ async fn run_storm_service(dir: PathBuf) -> Result<Vec<(JoinHandle<i32>, Sender<
     }
     let logger = Logger::new(Some(logs_dir));
     logger.log_i("Service is running");
-    let conf_groups = get_server_confs(conf_dir).await?;
+    let conf_groups = get_server_confs(conf_dir, logger.clone()).await?;
     for (_, confs) in conf_groups {
         if let Ok(sender) = run_http_server(confs ,logger.clone()).await {
             senders.push(sender);
@@ -49,7 +49,7 @@ async fn run_http_server(confs: Vec<Conf>, logger: Logger) -> Result<(JoinHandle
     Ok((handle, shutdown_tx))
 }
 
-async fn get_server_confs(dir: PathBuf) -> Result<HashMap<u16, Vec<Conf>>, Box<dyn Error>> {
+async fn get_server_confs(dir: PathBuf, logger: Logger) -> Result<HashMap<u16, Vec<Conf>>, Box<dyn Error>> {
     let mut configurations:HashMap<u16, Vec<Conf>> = HashMap::new();
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
@@ -60,11 +60,18 @@ async fn get_server_confs(dir: PathBuf) -> Result<HashMap<u16, Vec<Conf>>, Box<d
                 iter().
                 map(|x| x.to_string()).
                 collect();
-            if let Ok(conf) =  Conf::new(args) {
-                configurations
-                    .entry(conf.port)
-                    .or_insert_with(Vec::new)
-                    .push(conf);
+            match  Conf::new(args) {
+                Ok(conf) => {
+                    configurations
+                        .entry(conf.port)
+                        .or_insert_with(Vec::new)
+                        .push(conf);
+                }
+                Err(e) => {
+                    logger.log_e(
+                        format!("Error in configuration file {}: {}", path, e).as_str(),
+                    );
+                }
             }
         }
     }

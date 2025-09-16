@@ -134,7 +134,11 @@ impl ConfBuilder {
                 if path.exists() && path.is_dir() {
                     conf.logs_dir = Some(path.into());
                 } else {
-                    return Err(format!("Invalid log dir. Line no. {}", line_no))?;
+                    if let Some(parent) = path.parent() {
+                        if fs::create_dir_all(parent).is_err() {
+                            return Err(format!("Invalid log dir. Line no. {}", line_no))?;
+                        }
+                    }
                 }
             }
 
