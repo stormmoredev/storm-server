@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -62,12 +62,13 @@ impl HttpServer {
         }
 
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        let ip = address.ip();
         let listener = match TcpListener::bind(address).await {
             Ok(l) => l,
             Err(_) => return Err(format!("Could not bind to {}", address).as_str())?
         };
         let protocol = if conf.https_enabled { "Https" } else { "Http" };
-        server_logger.log_i(format!("{} server listening on port {}", protocol, conf.port).as_str());
+        server_logger.log_i(format!("{} server listening on  {}:{}", protocol, ip, conf.port).as_str());
 
         let server_logger = Arc::new(server_logger);
 
