@@ -13,6 +13,7 @@ pub struct HttpStream {
     query_path: String,
     path: String,
     query: String,
+    request_head: Vec<u8>,
     pub headers: HashMap<String, String>
 }
 
@@ -28,7 +29,8 @@ impl HttpStream {
             query_path: String::new(),
             path: String::new(),
             query: String::new(),
-            headers: HashMap::new()
+            headers: HashMap::new(),
+            request_head: Vec::new(),
         };
         http_reader.init().await?;
 
@@ -43,7 +45,7 @@ impl HttpStream {
         self.stream.write_all(buf).await
     }
 
-    pub async fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+    pub async fn read_body(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         if self.len.is_some() {
             let len = self.len.unwrap();
             if self.read >= len {
@@ -62,6 +64,10 @@ impl HttpStream {
         self.read += result;
         Ok(result)
     }
+
+    
+
+    pub fn request_head(&self) -> &[u8] { self.request_head.as_slice() }
 
     async fn init(&mut self) -> Result<(), Box<dyn Error>>  {
         let max = 8 * 1024;
@@ -99,8 +105,8 @@ impl HttpStream {
             .position(|window| window == [13,10,13,10])
             .unwrap() + 4;
 
-        let header_block = self.buffer.drain(..pos).collect::<Vec<u8>>();
-        let header_block = match String::from_utf8(header_block) {
+        self.request_head  = self.buffer.drain(..pos).collect::<Vec<u8>>();
+        let header_block = match String::from_utf8(self.request_head.clone()) {
             Ok(h) => h,
             Err(e) => return Err(e)?
         };

@@ -255,9 +255,10 @@ async fn dispatch_request(mut downstream: HttpStream,
         Ok(stream) => stream,
         Err(_) => Err("Could not connect with upstream")?,
     };
+    upstream.write_all(downstream.request_head()).await?;
     loop {
         let mut buff = [0; 4 * 1024];
-        let read_size = downstream.read(&mut buff).await?;
+        let read_size = downstream.read_body(&mut buff).await?;
         if read_size == 0 { break; }
         upstream.write_all(&buff[..read_size]).await?;
     }
@@ -270,57 +271,58 @@ async fn dispatch_request(mut downstream: HttpStream,
         let mut buff = [0; 4 * 1024];
         let read_size = upstream.read(&mut buff).await?;
         if read_size == 0 { break; }
+        downstream.write(&buff[..read_size]).await?;
 
-        if !headers_parsed {
-            resp_buf.extend_from_slice(&buff[..read_size]);
-            if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
-                let header_end = pos + 4;
-                let (header_bytes, body_bytes) = resp_buf.split_at(header_end);
-                let header_str = String::from_utf8_lossy(header_bytes);
-                let mut lines = header_str.split("\r\n");
-                let status_line_raw = lines.next().unwrap_or("");
-                let mut headers: Vec<(String, String)> = lines
-                    .filter(|l| !l.is_empty())
-                    .filter_map(|line| {
-                        line.find(':').map(|idx| (
-                            line[..idx].to_string(),
-                            line[idx + 1..].to_string(),
-                        ))
-                    })
-                    .collect();
-                cache_path = Cache::process_headers(&mut headers, downstream.query_path(), conf);
-
-                let mut head = format!("{}\r\n", status_line_raw).into_bytes();
-                for (k, v) in headers.iter() {
-                    head.extend_from_slice(format!("{}:{}\r\n", k, v).as_bytes());
-                }
-                head.extend_from_slice(b"\r\n");
-
-                downstream.write(&head).await?;
-                if !body_bytes.is_empty() {
-                    downstream.write(body_bytes).await?;
-                }
-
-                if cache_path.is_some() {
-                    let mut new_buf = head;
-                    new_buf.extend_from_slice(body_bytes);
-                    resp_buf = new_buf;
-                } else {
-                    resp_buf.clear();
-                }
-                headers_parsed = true;
-            }
-        } else {
-            downstream.write(&buff[..read_size]).await?;
-            if cache_path.is_some() {
-                resp_buf.extend_from_slice(&buff[..read_size]);
-            }
-        }
+        // if !headers_parsed {
+        //     resp_buf.extend_from_slice(&buff[..read_size]);
+        //     if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
+        //         let header_end = pos + 4;
+        //         let (header_bytes, body_bytes) = resp_buf.split_at(header_end);
+        //         let header_str = String::from_utf8_lossy(header_bytes);
+        //         let mut lines = header_str.split("\r\n");
+        //         let status_line_raw = lines.next().unwrap_or("");
+        //         let mut headers: Vec<(String, String)> = lines
+        //             .filter(|l| !l.is_empty())
+        //             .filter_map(|line| {
+        //                 line.find(':').map(|idx| (
+        //                     line[..idx].to_string(),
+        //                     line[idx + 1..].to_string(),
+        //                 ))
+        //             })
+        //             .collect();
+        //         cache_path = Cache::process_headers(&mut headers, downstream.query_path(), conf);
+        //
+        //         let mut head = format!("{}\r\n", status_line_raw).into_bytes();
+        //         for (k, v) in headers.iter() {
+        //             head.extend_from_slice(format!("{}:{}\r\n", k, v).as_bytes());
+        //         }
+        //         head.extend_from_slice(b"\r\n");
+        //
+        //         downstream.write(&head).await?;
+        //         if !body_bytes.is_empty() {
+        //             downstream.write(body_bytes).await?;
+        //         }
+        //
+        //         if cache_path.is_some() {
+        //             let mut new_buf = head;
+        //             new_buf.extend_from_slice(body_bytes);
+        //             resp_buf = new_buf;
+        //         } else {
+        //             resp_buf.clear();
+        //         }
+        //         headers_parsed = true;
+        //     }
+        // } else {
+        //     downstream.write(&buff[..read_size]).await?;
+        //     if cache_path.is_some() {
+        //         resp_buf.extend_from_slice(&buff[..read_size]);
+        //     }
+        // }
     }
 
-    if let Some(path) = cache_path {
-        let _ = Cache::write(&resp_buf, &path);
-    }
+    // if let Some(path) = cache_path {
+    //     let _ = Cache::write(&resp_buf, &path);
+    // }
 
     Ok(())
 }

@@ -6,7 +6,7 @@ use storm_server::service::run_storm_service;
 #[tokio::main]
 async fn main() {
     tokio::spawn( async move {
-        let mut handlers;
+        let handlers;
         match run_storm_service(PathBuf::from("c:\\stormsrv")).await {
             Ok(h) => handlers = h,
             Err(e) => {
