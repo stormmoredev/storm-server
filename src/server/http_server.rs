@@ -9,7 +9,6 @@ use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
 use uuid::Uuid;
-use crate::server::cache::CacheStatistic;
 use crate::conf::Conf;
 use request::Request;
 use crate::logger::Logger;
@@ -28,15 +27,12 @@ pub mod http_server_socket;
 
 pub struct HttpServer {
     hosts_configuration: Arc<Vec<Conf>>,
-    cache_stats: Arc<Mutex<CacheStatistic>>
 }
 
 impl HttpServer {
     pub fn new(conf: Vec<Conf>) -> HttpServer {
-        let cache_stats = Arc::new(Mutex::new(CacheStatistic::new()));
         HttpServer {
-            hosts_configuration: Arc::new(conf),
-            cache_stats
+            hosts_configuration: Arc::new(conf)
         }
     }
 
@@ -193,7 +189,7 @@ async fn handle_request(
         }
     };
 
-    if let Err(e) = request.output_response(response).await {
+    if let Err(e) = request.output_response(response, conf).await {
         logger.log_e(format!("{}| Request failed| {}", id, e).as_str());
         return Err(e);
     }
