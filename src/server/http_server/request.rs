@@ -102,7 +102,7 @@ impl Request {
         }
 
         loop {
-            let mut buff = [0; 256 * 1024];
+            let mut buff = [0; 1 * 1024];
             let read_size = res.read(&mut buff)?;
             if read_size == 0 {
                 break;

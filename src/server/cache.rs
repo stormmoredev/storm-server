@@ -110,7 +110,7 @@ impl Cache {
 
     pub async fn send_cached(stream: &mut HttpStream, path: &Path) -> io::Result<()> {
         let mut file = File::open(path)?;
-        let mut buff = [0; 256 * 1024];
+        let mut buff = [0; 32 * 1024];
         loop {
             let read = file.read(&mut buff)?;
             if read == 0 { break; }

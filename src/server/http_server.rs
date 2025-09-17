@@ -181,15 +181,13 @@ async fn handle_request(
     };
     let id = Uuid::new_v4();
     logger.log_i(format!("{}| Request {} {}", id, request.method(), request.query_path()).as_str());
-
-    println!("reading ");
+    
     let req_path = request.path().to_string();
     let req_query_path = request.query_path().to_string();
-    println!("try servce cache");
-   //  if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
-   //     logger.log_i(format!("{}| Request succeed [CACHE]", id).as_str());
-   //     return Ok(());
-   // }
+    if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
+       logger.log_i(format!("{}| Request succeed [CACHE]", id).as_str());
+       return Ok(());
+   }
 
     let response = match create_response(&mut request, conf).await {
         Ok(response) => response,
