@@ -40,7 +40,12 @@ async fn run_http_server(confs: Vec<Conf>, logger: Logger) -> Result<(JoinHandle
     let (shutdown_tx,  rx) = watch::channel(false);
     let handle: JoinHandle<i32> = tokio::spawn( async move {
         let server = HttpServer::new(confs);
-        let _ = server.run(logger, rx).await;
+        match server.run(logger.clone(), rx).await {
+            Err(e) => {
+                logger.log_e(format!("Server error: {}", e).as_str());
+            }
+            _ => { }
+        }
 
         let mut count = COUNTER.lock().await;
         *count += 1;
