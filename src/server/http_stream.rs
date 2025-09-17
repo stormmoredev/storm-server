@@ -44,12 +44,15 @@ impl HttpStream {
         self.stream.write_all(buf).await
     }
 
-    pub async fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+    pub async fn read_body(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         if self.len.is_some() {
             let len = self.len.unwrap();
             if self.read >= len {
                 return Ok(0);
             }
+        }
+        else {
+            return Ok(0);
         }
         let result;
         if self.buffer.len() > 0 {
@@ -62,6 +65,18 @@ impl HttpStream {
         }
         self.read += result;
         Ok(result)
+    }
+
+    pub fn header_block(&self) -> Vec<u8> {
+        let mut header_block = Vec::new();
+        let status_line = format!("{} {} HTTP/1.1\r\n", self.method, self.query_path);
+        header_block.extend_from_slice(status_line.as_bytes());
+        for (name, value) in &self.headers {
+            let header_line = format!("{}: {}\r\n", name, value);
+            header_block.extend_from_slice(header_line.as_bytes());
+        }
+        header_block.extend_from_slice(b"\r\n");
+        header_block
     }
 
     async fn init(&mut self) -> Result<(), Box<dyn Error>>  {
@@ -151,7 +166,7 @@ impl HttpStream {
             self.len = Some(len)
         }
 
-        if ["POST", "POST"].contains(&self.method.as_str()) && self.len.is_none() {
+        if ["POST", "PUT"].contains(&self.method.as_str()) && self.len.is_none() {
             return Err("Content-Length required")?;
         }
 

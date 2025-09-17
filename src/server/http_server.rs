@@ -244,9 +244,11 @@ async fn dispatch_request(mut downstream: HttpStream,
         Ok(stream) => stream,
         Err(_) => Err("Could not connect with upstream")?
     };
+
+    upstream.write_all(&downstream.header_block()).await?;
     loop {
         let mut buff = [0; 4 * 1024];
-        let read_size = downstream.read(&mut buff).await?;
+        let read_size = downstream.read_body(&mut buff).await?;
         if read_size == 0 {
             break;
         }

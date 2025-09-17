@@ -55,7 +55,7 @@ impl Request {
     }
 
     pub async fn read_body(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.stream.read(buf).await
+        self.stream.read_body(buf).await
     }
 
     pub async fn output_response(mut self, mut res: Response) -> Result<(), Box<dyn Error>> {
