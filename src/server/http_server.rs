@@ -158,7 +158,7 @@ async fn accept_request(addr: SocketAddr,
 
     if conf.load_balancing_enabled {
         let dispatcher = Arc::new(Mutex::new(Dispatcher::new(&conf)));
-        match dispatch_request(http_stream, dispatcher).await {
+        match dispatch_request(http_stream, dispatcher, conf).await {
             Ok(_) => server_logger.log_d("Request passed upstream successfully!"),
             Err(e) => server_logger.log_e(format!("Could not transfer stream. {}", e).as_str()),
         }
@@ -181,7 +181,7 @@ async fn handle_request(
     };
     let id = Uuid::new_v4();
     logger.log_i(format!("{}| Request {} {}", id, request.method(), request.query_path()).as_str());
-    
+
     let req_path = request.path().to_string();
     let req_query_path = request.query_path().to_string();
     if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
@@ -238,7 +238,13 @@ async fn get_file_path_response(request: &mut Request, conf: &Conf) -> Result<Re
 }
 
 async fn dispatch_request(mut downstream: HttpStream,
-                          dispatcher: Arc<Mutex<Dispatcher>>) -> Result<(), Box<dyn Error>> {
+                          dispatcher: Arc<Mutex<Dispatcher>>,
+                          conf: &Conf) -> Result<(), Box<dyn Error>> {
+    let ds_path = downstream.path().to_string();
+    let ds_query_path = downstream.query_path().to_string();
+    if Cache::try_serve_cached(&mut downstream, &ds_path, &ds_query_path, conf).await? {
+        return Ok(());
+    }
     let endpoint = match dispatcher.lock().unwrap().get() {
         Some(e) => e,
         None => return Err("No endpoint to handle request")?
@@ -260,6 +266,10 @@ async fn dispatch_request(mut downstream: HttpStream,
         break;
     }
 
+    let mut resp_buf: Vec<u8> = Vec::new();
+    let mut headers_parsed = false;
+    let mut cache_path: Option<PathBuf> = None;
+
     loop {
         let mut buff = [0; 4 * 1024];
         let read_size = upstream.read(&mut buff).await?;
@@ -267,6 +277,43 @@ async fn dispatch_request(mut downstream: HttpStream,
             break;
         }
         downstream.write(&buff[0..read_size]).await?;
+
+        if !headers_parsed {
+            resp_buf.extend_from_slice(&buff[..read_size]);
+            if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                let header_end = pos + 4;
+                let (header_bytes, _) = resp_buf.split_at(header_end);
+                let header_str = String::from_utf8_lossy(header_bytes);
+                let mut lines = header_str.lines().skip(1);
+                let mut headers: Vec<(String, String)> = lines
+                    .filter(|l| !l.is_empty())
+                    .filter_map(|line| {
+                        line.find(':').map(|idx| (
+                            line[..idx].to_string(),
+                            line[idx + 1..].trim().to_string(),
+                        ))
+                    })
+                    .collect();
+                cache_path = Cache::process_headers(&mut headers, downstream.query_path(), conf);
+                headers_parsed = true;
+
+                resp_buf = Vec::new();
+                resp_buf.extend_from_slice(b"HTTP/1.1 200 OK\r\n");
+                for (name, value) in headers {
+                    let header_line = format!("{}: {}\r\n", name, value);
+                    resp_buf.extend_from_slice(header_line.as_bytes());
+                }
+                resp_buf.extend_from_slice(b"\r\n");
+                resp_buf.extend_from_slice(&buff[header_end..read_size]);
+            }
+        } else {
+            if cache_path.is_some() {
+                resp_buf.extend_from_slice(&buff[..read_size]);
+            }
+        }
+    }
+    if let Some(path) = cache_path {
+        let _ = Cache::write(&resp_buf, &path);
     }
 
     Ok(())

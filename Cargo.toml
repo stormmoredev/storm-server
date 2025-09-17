@@ -26,3 +26,4 @@ tokio = {version = "1.46.1", features = ["full"]}
 rustls = {  version= "0.23.31", features = ["aws-lc-rs"]}
 rustls-pemfile = "2.2.0"
 tokio-rustls = "0.26.2"
+fs2 = "0.4.3"
