@@ -1,23 +1,24 @@
 use std::error::Error;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::path::PathBuf;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch::Receiver;
+use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
+use uuid::Uuid;
+use crate::server::cache::CacheStatistic;
 use crate::conf::Conf;
+use request::Request;
 use crate::logger::Logger;
-use crate::php::Php;
-use crate::server::cache::Cache;
 use crate::server::endpoint_dispatcher::Dispatcher;
 use crate::server::http_server::cert::build_tls_config;
-use crate::server::http_server::http_server_socket::HttpServerSocket;
 use crate::server::http_server::response::Response;
-use crate::server::http_stream::HttpStream;
-use request::Request;
-use uuid::Uuid;
+use crate::server::http_stream::{HttpStream};
+use crate::php::Php;
+use crate::server::http_server::http_server_socket::HttpServerSocket;
 
 pub mod request;
 mod response;
@@ -27,12 +28,15 @@ pub mod http_server_socket;
 
 pub struct HttpServer {
     hosts_configuration: Arc<Vec<Conf>>,
+    cache_stats: Arc<Mutex<CacheStatistic>>
 }
 
 impl HttpServer {
     pub fn new(conf: Vec<Conf>) -> HttpServer {
+        let cache_stats = Arc::new(Mutex::new(CacheStatistic::new()));
         HttpServer {
-            hosts_configuration: Arc::new(conf)
+            hosts_configuration: Arc::new(conf),
+            cache_stats
         }
     }
 
@@ -62,13 +66,12 @@ impl HttpServer {
         }
 
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
-        let ip = address.ip();
         let listener = match TcpListener::bind(address).await {
             Ok(l) => l,
-            Err(_) => return Err(format!("Could not bind to {}", address).as_str())?
+            Err(e) => return Err(format!("Could not bind to {}", address).as_str())?
         };
         let protocol = if conf.https_enabled { "Https" } else { "Http" };
-        server_logger.log_i(format!("{} server listening on  {}:{}", protocol, ip, conf.port).as_str());
+        server_logger.log_i(format!("{} server listening on port {}", protocol, conf.port).as_str());
 
         let server_logger = Arc::new(server_logger);
 
@@ -123,7 +126,7 @@ async fn accept_request(addr: SocketAddr,
     else {
         HttpServerSocket::Plain(stream)
     };
-    
+
     let http_stream = match HttpStream::new(rw_stream).await
     {
         Ok(stream) => stream,
@@ -140,7 +143,7 @@ async fn accept_request(addr: SocketAddr,
             return;
         }
         (None, 1) => confs.get(0),
-        (Some(_), 1) => confs.get(0),
+        (Some(h), 1) => confs.get(0),
         (Some(h), _) => {
             let conf = confs.iter().find(|x| x.domain.eq(h.1));
             if conf.is_none() {
@@ -158,7 +161,7 @@ async fn accept_request(addr: SocketAddr,
 
     if conf.load_balancing_enabled {
         let dispatcher = Arc::new(Mutex::new(Dispatcher::new(&conf)));
-        match dispatch_request(http_stream, dispatcher, conf).await {
+        match dispatch_request(http_stream, dispatcher).await {
             Ok(_) => server_logger.log_d("Request passed upstream successfully!"),
             Err(e) => server_logger.log_e(format!("Could not transfer stream. {}", e).as_str()),
         }
@@ -182,13 +185,6 @@ async fn handle_request(
     let id = Uuid::new_v4();
     logger.log_i(format!("{}| Request {} {}", id, request.method(), request.query_path()).as_str());
 
-    let req_path = request.path().to_string();
-    let req_query_path = request.query_path().to_string();
-    if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
-        logger.log_i(format!("{}| Request succeed", id).as_str());
-        return Ok(());
-    }
-
     let response = match create_response(&mut request, conf).await {
         Ok(response) => response,
         Err(e) => {
@@ -197,7 +193,7 @@ async fn handle_request(
         }
     };
 
-    if let Err(e) = request.output_response(response, conf).await {
+    if let Err(e) = request.output_response(response).await {
         logger.log_e(format!("{}| Request failed| {}", id, e).as_str());
         return Err(e);
     }
@@ -238,91 +234,37 @@ async fn get_file_path_response(request: &mut Request, conf: &Conf) -> Result<Re
 }
 
 async fn dispatch_request(mut downstream: HttpStream,
-                          dispatcher: Arc<Mutex<Dispatcher>>,
-                          conf: &Conf) -> Result<(), Box<dyn Error>> {
-    let ds_path = downstream.path().to_string();
-    let ds_query_path = downstream.query_path().to_string();
-    if Cache::try_serve_cached(&mut downstream, &ds_path, &ds_query_path, conf).await? {
-        return Ok(());
-    }
-
+                          dispatcher: Arc<Mutex<Dispatcher>>) -> Result<(), Box<dyn Error>> {
     let endpoint = match dispatcher.lock().unwrap().get() {
         Some(e) => e,
-        None => return Err("No endpoint to handle request")?,
+        None => return Err("No endpoint to handle request")?
     };
 
     let mut upstream = match TcpStream::connect(endpoint).await {
         Ok(stream) => stream,
-        Err(_) => Err("Could not connect with upstream")?,
+        Err(_) => Err("Could not connect with upstream")?
     };
-    upstream.write_all(downstream.request_head()).await?;
+
+    upstream.write_all(&downstream.header_block()).await?;
     loop {
         let mut buff = [0; 4 * 1024];
         let read_size = downstream.read_body(&mut buff).await?;
-        if read_size == 0 { break; }
-        upstream.write_all(&buff[..read_size]).await?;
+        if read_size == 0 {
+            break;
+        }
+        upstream.write_all(&buff[0..read_size]).await?;
+        break;
     }
-
-    let mut resp_buf: Vec<u8> = Vec::new();
-    let mut headers_parsed = false;
-    let mut cache_path: Option<PathBuf> = None;
 
     loop {
         let mut buff = [0; 4 * 1024];
         let read_size = upstream.read(&mut buff).await?;
-        if read_size == 0 { break; }
-        downstream.write(&buff[..read_size]).await?;
-
-        // if !headers_parsed {
-        //     resp_buf.extend_from_slice(&buff[..read_size]);
-        //     if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
-        //         let header_end = pos + 4;
-        //         let (header_bytes, body_bytes) = resp_buf.split_at(header_end);
-        //         let header_str = String::from_utf8_lossy(header_bytes);
-        //         let mut lines = header_str.split("\r\n");
-        //         let status_line_raw = lines.next().unwrap_or("");
-        //         let mut headers: Vec<(String, String)> = lines
-        //             .filter(|l| !l.is_empty())
-        //             .filter_map(|line| {
-        //                 line.find(':').map(|idx| (
-        //                     line[..idx].to_string(),
-        //                     line[idx + 1..].to_string(),
-        //                 ))
-        //             })
-        //             .collect();
-        //         cache_path = Cache::process_headers(&mut headers, downstream.query_path(), conf);
-        //
-        //         let mut head = format!("{}\r\n", status_line_raw).into_bytes();
-        //         for (k, v) in headers.iter() {
-        //             head.extend_from_slice(format!("{}:{}\r\n", k, v).as_bytes());
-        //         }
-        //         head.extend_from_slice(b"\r\n");
-        //
-        //         downstream.write(&head).await?;
-        //         if !body_bytes.is_empty() {
-        //             downstream.write(body_bytes).await?;
-        //         }
-        //
-        //         if cache_path.is_some() {
-        //             let mut new_buf = head;
-        //             new_buf.extend_from_slice(body_bytes);
-        //             resp_buf = new_buf;
-        //         } else {
-        //             resp_buf.clear();
-        //         }
-        //         headers_parsed = true;
-        //     }
-        // } else {
-        //     downstream.write(&buff[..read_size]).await?;
-        //     if cache_path.is_some() {
-        //         resp_buf.extend_from_slice(&buff[..read_size]);
-        //     }
-        // }
+        if read_size == 0 {
+            break;
+        }
+        downstream.write(&buff[0..read_size]).await?;
     }
-
-    // if let Some(path) = cache_path {
-    //     let _ = Cache::write(&resp_buf, &path);
-    // }
 
     Ok(())
 }
+

@@ -1,8 +1,9 @@
-use crate::server::http_server::http_server_socket::HttpServerSocket;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::SocketAddr;
+use crate::server::http_server::http_server_socket::HttpServerSocket;
 
 pub struct HttpStream {
     stream: HttpServerSocket,
@@ -13,7 +14,6 @@ pub struct HttpStream {
     query_path: String,
     path: String,
     query: String,
-    request_head: Vec<u8>,
     pub headers: HashMap<String, String>
 }
 
@@ -29,8 +29,7 @@ impl HttpStream {
             query_path: String::new(),
             path: String::new(),
             query: String::new(),
-            headers: HashMap::new(),
-            request_head: Vec::new(),
+            headers: HashMap::new()
         };
         http_reader.init().await?;
 
@@ -52,6 +51,9 @@ impl HttpStream {
                 return Ok(0);
             }
         }
+        else {
+            return Ok(0);
+        }
         let result;
         if self.buffer.len() > 0 {
             let size = if self.buffer.len() > buf.len() { buf.len() } else { self.buffer.len() };
@@ -65,9 +67,17 @@ impl HttpStream {
         Ok(result)
     }
 
-    
-
-    pub fn request_head(&self) -> &[u8] { self.request_head.as_slice() }
+    pub fn header_block(&self) -> Vec<u8> {
+        let mut header_block = Vec::new();
+        let status_line = format!("{} {} HTTP/1.1\r\n", self.method, self.query_path);
+        header_block.extend_from_slice(status_line.as_bytes());
+        for (name, value) in &self.headers {
+            let header_line = format!("{}: {}\r\n", name, value);
+            header_block.extend_from_slice(header_line.as_bytes());
+        }
+        header_block.extend_from_slice(b"\r\n");
+        header_block
+    }
 
     async fn init(&mut self) -> Result<(), Box<dyn Error>>  {
         let max = 8 * 1024;
@@ -105,8 +115,8 @@ impl HttpStream {
             .position(|window| window == [13,10,13,10])
             .unwrap() + 4;
 
-        self.request_head  = self.buffer.drain(..pos).collect::<Vec<u8>>();
-        let header_block = match String::from_utf8(self.request_head.clone()) {
+        let header_block = self.buffer.drain(..pos).collect::<Vec<u8>>();
+        let header_block = match String::from_utf8(header_block) {
             Ok(h) => h,
             Err(e) => return Err(e)?
         };
@@ -156,7 +166,7 @@ impl HttpStream {
             self.len = Some(len)
         }
 
-        if ["POST", "POST"].contains(&self.method.as_str()) && self.len.is_none() {
+        if ["POST", "PUT"].contains(&self.method.as_str()) && self.len.is_none() {
             return Err("Content-Length required")?;
         }
 
