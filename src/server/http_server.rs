@@ -1,11 +1,10 @@
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch::Receiver;
-use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
 use uuid::Uuid;
@@ -17,6 +16,7 @@ use crate::server::http_server::cert::build_tls_config;
 use crate::server::http_server::response::Response;
 use crate::server::http_stream::{HttpStream};
 use crate::php::Php;
+use crate::server::cache::Cache;
 use crate::server::http_server::http_server_socket::HttpServerSocket;
 
 pub mod request;
@@ -62,12 +62,13 @@ impl HttpServer {
         }
 
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        let ip = address.ip();
         let listener = match TcpListener::bind(address).await {
             Ok(l) => l,
             Err(e) => return Err(format!("Could not bind to {}", address).as_str())?
         };
         let protocol = if conf.https_enabled { "Https" } else { "Http" };
-        server_logger.log_i(format!("{} server listening on port {}", protocol, conf.port).as_str());
+        server_logger.log_i(format!("{} server listening on  {}:{}", protocol, ip, conf.port).as_str());
 
         let server_logger = Arc::new(server_logger);
 
@@ -180,6 +181,15 @@ async fn handle_request(
     };
     let id = Uuid::new_v4();
     logger.log_i(format!("{}| Request {} {}", id, request.method(), request.query_path()).as_str());
+
+    println!("reading ");
+    let req_path = request.path().to_string();
+    let req_query_path = request.query_path().to_string();
+    println!("try servce cache");
+   //  if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
+   //     logger.log_i(format!("{}| Request succeed [CACHE]", id).as_str());
+   //     return Ok(());
+   // }
 
     let response = match create_response(&mut request, conf).await {
         Ok(response) => response,
