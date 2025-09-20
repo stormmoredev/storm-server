@@ -15,6 +15,10 @@ path = "src/bin/service.rs"
 name = "stormsrvcmd"
 path = "src/bin/servicecmd.rs"
 
+[profile.dev]
+debug = true
+
+
 [dependencies]
 chrono = { version = "0.4.41" }
 uuid = { version = "1.17.0", features = ["v4"] }
