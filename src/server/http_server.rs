@@ -300,6 +300,7 @@ async fn dispatch_request(mut downstream: HttpStream,
                 let body = resp_buf[header_end..].to_vec();
                 resp_buf.clear();
                 resp_buf.extend_from_slice(first_line.as_bytes());
+                resp_buf.extend_from_slice(b"\r\n");
                 for (name, value) in headers {
                     let header_line = format!("{}: {}\r\n", name, value);
                     resp_buf.extend_from_slice(header_line.as_bytes());

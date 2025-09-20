@@ -70,7 +70,7 @@ impl Cache {
     }
 
     pub fn file_path(conf: &Conf, key: &str) -> Option<PathBuf> {
-        conf.cache_dir.as_ref().map(|dir| dir.join(Self::key_to_filename(key)))
+        conf.cache_dir.as_ref().map(|dir| dir.join(Cache::key_to_filename(key)))
     }
 
     pub fn delete_like(conf: &Conf, like: &str) {
