@@ -271,20 +271,20 @@ async fn dispatch_request(mut downstream: HttpStream,
     let mut cache_path: Option<PathBuf> = None;
 
     loop {
-        let mut buff = [0; 4 * 1024];
+        let mut buff = [0; 1 * 1024];
         let read_size = upstream.read(&mut buff).await?;
         if read_size == 0 {
             break;
         }
-        downstream.write(&buff[0..read_size]).await?;
 
-        if !headers_parsed {
+        if conf.cache_enabled && !headers_parsed {
             resp_buf.extend_from_slice(&buff[..read_size]);
             if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
                 let header_end = pos + 4;
                 let (header_bytes, _) = resp_buf.split_at(header_end);
                 let header_str = String::from_utf8_lossy(header_bytes);
-                let lines = header_str.lines().skip(1);
+                let mut lines = header_str.lines();
+                let first_line = lines.next().unwrap_or_default().to_string();
                 let mut headers: Vec<(String, String)> = lines
                     .filter(|l| !l.is_empty())
                     .filter_map(|line| {
@@ -297,16 +297,20 @@ async fn dispatch_request(mut downstream: HttpStream,
                 cache_path = Cache::process_headers(&mut headers, downstream.query_path(), conf);
                 headers_parsed = true;
 
-                resp_buf = Vec::new();
-                resp_buf.extend_from_slice(b"HTTP/1.1 200 OK\r\n");
+                let body = resp_buf[header_end..].to_vec();
+                resp_buf.clear();
+                resp_buf.extend_from_slice(first_line.as_bytes());
                 for (name, value) in headers {
                     let header_line = format!("{}: {}\r\n", name, value);
                     resp_buf.extend_from_slice(header_line.as_bytes());
                 }
                 resp_buf.extend_from_slice(b"\r\n");
-                resp_buf.extend_from_slice(&buff[header_end..read_size]);
+                resp_buf.extend_from_slice(&body);
+
+                downstream.write(&resp_buf).await?;
             }
         } else {
+            downstream.write(&buff[0..read_size]).await?;
             if cache_path.is_some() {
                 resp_buf.extend_from_slice(&buff[..read_size]);
             }
