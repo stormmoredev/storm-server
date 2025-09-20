@@ -65,7 +65,7 @@ impl HttpServer {
         let ip = address.ip();
         let listener = match TcpListener::bind(address).await {
             Ok(l) => l,
-            Err(e) => return Err(format!("Could not bind to {}", address).as_str())?
+            Err(_) => return Err(format!("Could not bind to {}", address).as_str())?
         };
         let protocol = if conf.https_enabled { "Https" } else { "Http" };
         server_logger.log_i(format!("{} server listening on  {}:{}", protocol, ip, conf.port).as_str());
@@ -140,7 +140,7 @@ async fn accept_request(addr: SocketAddr,
             return;
         }
         (None, 1) => confs.get(0),
-        (Some(h), 1) => confs.get(0),
+        (Some(_), 1) => confs.get(0),
         (Some(h), _) => {
             let conf = confs.iter().find(|x| x.domain.eq(h.1));
             if conf.is_none() {
@@ -284,7 +284,7 @@ async fn dispatch_request(mut downstream: HttpStream,
                 let header_end = pos + 4;
                 let (header_bytes, _) = resp_buf.split_at(header_end);
                 let header_str = String::from_utf8_lossy(header_bytes);
-                let mut lines = header_str.lines().skip(1);
+                let lines = header_str.lines().skip(1);
                 let mut headers: Vec<(String, String)> = lines
                     .filter(|l| !l.is_empty())
                     .filter_map(|line| {

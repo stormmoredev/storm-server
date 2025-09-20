@@ -8,6 +8,54 @@ use crate::conf::Conf;
 pub struct Cache;
 
 impl Cache {
+
+    pub fn process_headers(
+        headers: &mut Vec<(String, String)>,
+        query_path: &str,
+        conf: &Conf,
+    ) -> Option<PathBuf> {
+        if !conf.cache_enabled{
+            return None;
+        }
+        let mut cache_request = false;
+        let mut delete_prefix: Option<String> = None;
+        let mut delete_path: Option<String> = None;
+
+        headers.retain(|(k, v)| {
+            if k.eq_ignore_ascii_case("x-cache-request") {
+                cache_request = true;
+                false
+            } else if k.eq_ignore_ascii_case("x-cache-delete-like") {
+                delete_prefix = Some(v.clone());
+                false
+            }
+            else if k.eq_ignore_ascii_case("x-cache-delete") {
+                delete_path = Some(v.clone()) ;
+                false
+            }
+            else {
+                true
+            }
+        });
+
+        if let Some(prefix) = delete_prefix {
+            Cache::delete_like(conf, prefix.as_str());
+        }
+        if let Some(path) = delete_path {
+            Cache::delete(conf, path.as_str());
+        }
+
+        if cache_request {
+            if let Some(path) = Cache::file_path(conf, query_path) {
+                if let Some(parent) = path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                return Some(path);
+            }
+        }
+        None
+    }
+
     pub fn qualifies(path: &str, conf: &Conf) -> bool {
         if !conf.cache_enabled {
             return false;
@@ -43,6 +91,19 @@ impl Cache {
         }
     }
 
+    pub fn delete(conf: &Conf, like: &str) {
+        if !conf.cache_enabled {
+            return;
+        }
+        if let Some(dir) = &conf.cache_dir {
+            let filename = Self::key_to_filename(like);
+            let path = dir.join(filename);
+            if path.is_file() {
+                let _ = Cache::lock_and_remove(&path);
+            }
+        }
+    }
+
     fn lock_and_remove(path: &Path) -> io::Result<()> {
         let file = OpenOptions::new()
             .create(false)
@@ -52,7 +113,7 @@ impl Cache {
 
         let mut lock = RwLock::new(file);
         {
-            let mut guard = lock.write()?;
+            let _ =lock.write()?;
             #[cfg(unix)]
             {
                 remove_file(path)?;
@@ -64,44 +125,6 @@ impl Cache {
         }
 
         Ok(())
-    }
-
-    pub fn process_headers(
-        headers: &mut Vec<(String, String)>,
-        query_path: &str,
-        conf: &Conf,
-    ) -> Option<PathBuf> {
-        if !conf.cache_enabled{
-            return None;
-        }
-        let mut cache_request = false;
-        let mut delete_prefix: Option<String> = None;
-
-        headers.retain(|(k, v)| {
-            if k.eq_ignore_ascii_case("x-cache-path-query") {
-                cache_request = true;
-                false
-            } else if k.eq_ignore_ascii_case("x-cache-delete-like") {
-                delete_prefix = Some(v.clone());
-                false
-            } else {
-                true
-            }
-        });
-
-        if let Some(prefix) = delete_prefix {
-            Cache::delete_like(conf, prefix.as_str());
-        }
-
-        if cache_request {
-            if let Some(path) = Cache::file_path(conf, query_path) {
-                if let Some(parent) = path.parent() {
-                    let _ = fs::create_dir_all(parent);
-                }
-                return Some(path);
-            }
-        }
-        None
     }
 
     pub fn write(buf: &[u8], path: &Path) -> io::Result<()> {
