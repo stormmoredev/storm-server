@@ -1,4 +1,4 @@
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, remove_file, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use fd_lock::RwLock;
@@ -35,12 +35,35 @@ impl Cache {
                 for entry in entries.flatten() {
                     if let Ok(name) = entry.file_name().into_string() {
                         if name.starts_with(&prefix) {
-                            let _ = fs::remove_file(entry.path());
+                            let _ = Cache::lock_and_remove(&entry.path());
                         }
                     }
                 }
             }
         }
+    }
+
+    fn lock_and_remove(path: &Path) -> io::Result<()> {
+        let file = OpenOptions::new()
+            .create(false)
+            .read(true)
+            .write(true)
+            .open(path)?;
+
+        let mut lock = RwLock::new(file);
+        {
+            let mut guard = lock.write()?;
+            #[cfg(unix)]
+            {
+                remove_file(path)?;
+            }
+        }
+        #[cfg(windows)]
+        {
+            remove_file(path)?;
+        }
+
+        Ok(())
     }
 
     pub fn process_headers(
