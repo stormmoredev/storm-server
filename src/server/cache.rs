@@ -1,7 +1,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use fs2::FileExt;
+use fd_lock::RwLock;
 use crate::server::http_stream::HttpStream;
 use crate::conf::Conf;
 
@@ -82,10 +82,16 @@ impl Cache {
     }
 
     pub fn write(buf: &[u8], path: &Path) -> io::Result<()> {
-        let mut lock = File::create(path)?;
-        lock.lock_exclusive()?;
-        lock.write_all(buf)?;
-        lock.unlock()?;
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)?;
+
+        let mut lock = RwLock::new(file);
+        {
+            let mut guard = lock.write()?;
+            guard.write_all(buf)?;
+        }
         Ok(())
     }
 
