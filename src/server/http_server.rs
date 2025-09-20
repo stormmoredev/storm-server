@@ -184,7 +184,7 @@ async fn handle_request(
 
     let req_path = request.path().to_string();
     let req_query_path = request.query_path().to_string();
-    if Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await? {
+    if let Ok(_) = Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await {
        logger.log_i(format!("{}| Request succeed [CACHE]", id).as_str());
        return Ok(());
    }
@@ -242,7 +242,7 @@ async fn dispatch_request(mut downstream: HttpStream,
                           conf: &Conf) -> Result<(), Box<dyn Error>> {
     let ds_path = downstream.path().to_string();
     let ds_query_path = downstream.query_path().to_string();
-    if Cache::try_serve_cached(&mut downstream, &ds_path, &ds_query_path, conf).await? {
+    if let Ok(_) = Cache::try_serve_cached(&mut downstream, &ds_path, &ds_query_path, conf).await {
         return Ok(());
     }
     let endpoint = match dispatcher.lock().unwrap().get() {
