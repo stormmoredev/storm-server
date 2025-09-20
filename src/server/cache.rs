@@ -168,6 +168,7 @@ impl Cache {
             drop(lock);
             if let Err(e) = fs::rename(&lock_path, path) {
                 remove_file(&lock_path)?;
+                return Err(e);
             }
             Ok(())
         })();
