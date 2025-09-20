@@ -67,7 +67,14 @@ impl Cache {
         let filename = key.trim_start_matches('/')
             .replace('/', "_")
             .replace("?", "_")
-            .replace("&", "_");
+            .replace("&", "_")
+            .replace("|", "_")
+            .replace("<", "_")
+            .replace(">", "_")
+            .replace("*", "_")
+            .replace('"', "_")
+            .replace('\\', "_")
+            .replace(":", "_");
         Some(filename.to_string())
     }
 
@@ -139,17 +146,33 @@ impl Cache {
     }
 
     pub fn write(buf: &[u8], path: &Path) -> io::Result<()> {
-        let file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)?;
-
-        let mut lock = RwLock::new(file);
-        {
-            let mut guard = lock.write()?;
-            guard.write_all(buf)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
         }
-        Ok(())
+        if path.is_file() {
+            return Ok(());
+        }
+        let lock_path = path.with_extension(".lock");
+        let result = (|| {
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&lock_path)?;
+
+            let mut lock = RwLock::new(file);
+            {
+                let mut guard = lock.write()?;
+                guard.write_all(buf)?;
+            }
+
+            drop(lock);
+            fs::rename(&lock_path, path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = remove_file(&lock_path);
+        }
+        result
     }
 
     pub async fn send_cached(stream: &mut HttpStream, path: &Path) -> io::Result<()> {
