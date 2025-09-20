@@ -294,7 +294,7 @@ async fn dispatch_request(mut downstream: HttpStream,
                         ))
                     })
                     .collect();
-                cache_path = Cache::process_headers(&mut headers, downstream.query_path(), conf);
+                cache_path = Cache::process_headers(&mut headers, conf);
                 headers_parsed = true;
 
                 let body = resp_buf[header_end..].to_vec();

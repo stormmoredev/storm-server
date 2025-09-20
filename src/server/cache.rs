@@ -11,26 +11,26 @@ impl Cache {
 
     pub fn process_headers(
         headers: &mut Vec<(String, String)>,
-        query_path: &str,
         conf: &Conf,
     ) -> Option<PathBuf> {
         if !conf.cache_enabled{
             return None;
         }
-        let mut cache_request = false;
+        let mut request_path: Option<String> = None;
         let mut delete_prefix: Option<String> = None;
         let mut delete_path: Option<String> = None;
 
+
         headers.retain(|(k, v)| {
             if k.eq_ignore_ascii_case("x-cache-request") {
-                cache_request = true;
+                request_path = Cache::key_to_filename(v);
                 false
             } else if k.eq_ignore_ascii_case("x-cache-delete-like") {
-                delete_prefix = Some(v.clone());
+                delete_prefix = Cache::key_to_filename(v);
                 false
             }
             else if k.eq_ignore_ascii_case("x-cache-delete") {
-                delete_path = Some(v.clone()) ;
+                delete_path = Cache::key_to_filename(v);
                 false
             }
             else {
@@ -45,8 +45,8 @@ impl Cache {
             Cache::delete(conf, path.as_str());
         }
 
-        if cache_request {
-            if let Some(path) = Cache::file_path(conf, query_path) {
+        if request_path.is_some() {
+            if let Some(path) = Cache::file_path(conf, request_path.unwrap().as_ref()) {
                 if let Some(parent) = path.parent() {
                     let _ = fs::create_dir_all(parent);
                 }
@@ -63,14 +63,19 @@ impl Cache {
         conf.cache_patterns.iter().any(|p| path.starts_with(p))
     }
 
-    pub fn key_to_filename(key: &str) -> String {
-        key.trim_start_matches('/')
+    pub fn key_to_filename(key: &str) -> Option<String> {
+        let filename = key.trim_start_matches('/')
             .replace('/', "_")
             .replace("?", "_")
+            .replace("&", "_");
+        Some(filename.to_string())
     }
 
     pub fn file_path(conf: &Conf, key: &str) -> Option<PathBuf> {
-        conf.cache_dir.as_ref().map(|dir| dir.join(Cache::key_to_filename(key)))
+        if let Some(filename) = Cache::key_to_filename(key) {
+            return conf.cache_dir.as_ref().map(|dir| dir.join(filename))
+        }
+        None
     }
 
     pub fn delete_like(conf: &Conf, like: &str) {
@@ -78,7 +83,10 @@ impl Cache {
             return;
         }
         if let Some(dir) = &conf.cache_dir {
-            let prefix = Self::key_to_filename(like);
+            let prefix = match Cache::key_to_filename(like) {
+                Some(prefix) => prefix,
+                None => return,
+            };
             if let Ok(entries) = fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     if let Ok(name) = entry.file_name().into_string() {
@@ -96,7 +104,10 @@ impl Cache {
             return;
         }
         if let Some(dir) = &conf.cache_dir {
-            let filename = Self::key_to_filename(like);
+            let filename = match Cache::key_to_filename(like) {
+                Some(filename) => filename,
+                None => return
+            };
             let path = dir.join(filename);
             if path.is_file() {
                 let _ = Cache::lock_and_remove(&path);

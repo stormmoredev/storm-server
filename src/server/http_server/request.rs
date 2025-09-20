@@ -71,7 +71,7 @@ impl Request {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        let cache_path = Cache::process_headers(&mut headers, self.query_path(), conf);
+        let cache_path = Cache::process_headers(&mut headers, conf);
 
         let status_line = res.status_line();
         self.stream.write(status_line.as_bytes()).await?;
