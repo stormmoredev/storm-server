@@ -169,14 +169,15 @@ impl Cache {
             fs::rename(&lock_path, path)?;
             Ok(())
         })();
-        if result.is_err() {
-            let _ = remove_file(&lock_path);
-        }
+
         result
     }
 
     pub async fn send_cached(stream: &mut HttpStream, path: &Path) -> io::Result<()> {
-        let mut file = File::open(path)?;
+        let mut file = OpenOptions::new()
+            .read(true)
+            .create_new(false)
+            .open(path)?;
         let mut buff = [0; 32 * 1024];
         loop {
             let read = file.read(&mut buff)?;
@@ -194,10 +195,8 @@ impl Cache {
     ) -> io::Result<bool> {
         if Cache::qualifies(path, conf) {
             if let Some(file_path) = Cache::file_path(conf, key) {
-                if file_path.is_file() {
-                    Cache::send_cached(stream, &file_path).await?;
-                    return Ok(true);
-                }
+                Cache::send_cached(stream, &file_path).await?;
+                return Ok(true);
             }
         }
         Ok(false)
