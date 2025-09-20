@@ -1,10 +1,7 @@
-use std::cell::{Ref, RefCell, RefMut};
+use chrono::Local;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::{PathBuf};
-use chrono::Local;
-use once_cell::sync::Lazy;
-use std::sync::{Mutex, MutexGuard};
+use std::path::PathBuf;
 
 pub struct Logger {
     min: usize,

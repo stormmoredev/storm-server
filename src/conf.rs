@@ -2,11 +2,11 @@ mod conf_error;
 mod conf_builder;
 mod args;
 
+use crate::conf::conf_builder::ConfBuilder;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
-use crate::conf::conf_builder::ConfBuilder;
 
 pub struct Conf {
     pub dir: String,
@@ -26,7 +26,10 @@ pub struct Conf {
     pub logs_min_level: String,
     pub logs_dir: Option<PathBuf>,
     pub load_balancing_enabled: bool,
-    pub load_balancing_servers: Vec<SocketAddr>
+    pub load_balancing_servers: Vec<SocketAddr>,
+    pub cache_enabled: bool,
+    pub cache_dir: Option<PathBuf>,
+    pub cache_patterns: Vec<String>
 }
 
 impl Conf {

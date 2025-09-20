@@ -1,11 +1,12 @@
+use crate::conf::Conf;
+use crate::server::cache::Cache;
+use crate::server::http_server::response::Response;
+use crate::server::http_stream::HttpStream;
 use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use urlencoding::decode;
-use crate::conf::Conf;
-use crate::server::http_stream::HttpStream;
-use crate::server::http_server::response::Response;
 
 pub struct Request {
     stream:  HttpStream,
@@ -54,33 +55,68 @@ impl Request {
         self.file_path = file_path;
     }
 
+    pub fn stream_mut(&mut self) -> &mut HttpStream { &mut self.stream }
+
     pub async fn read_body(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.stream.read_body(buf).await
     }
 
-    pub async fn output_response(mut self, mut res: Response) -> Result<(), Box<dyn Error>> {
-        self.stream.write(res.status_line().as_bytes()).await?;
+    pub async fn output_response(
+        mut self,
+        mut res: Response,
+        conf: &Conf,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut headers: Vec<(String, String)> = res
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let cache_path = Cache::process_headers(&mut headers, conf);
 
-        let mut idx = 0;
-        for (key, value) in res.headers() {
-            if idx == res.headers().len() - 1 {
-                self.stream.write(format!("{}:{}", key, value).as_bytes()).await?;
+        let status_line = res.status_line();
+        self.stream.write(status_line.as_bytes()).await?;
+        let mut cache_buf: Option<Vec<u8>> = if cache_path.is_some() {
+            let mut v = Vec::new();
+            v.extend_from_slice(status_line.as_bytes());
+            Some(v)
+        } else {
+            None
+        };
+
+        let headers_len = headers.len();
+        for (idx, (key, value)) in headers.iter().enumerate() {
+            let line = if idx == headers_len - 1 {
+                format!("{}:{}", key, value)
+            } else {
+                format!("{}:{}\n", key, value)
+            };
+            self.stream.write(line.as_bytes()).await?;
+            if let Some(buf) = cache_buf.as_mut() {
+                buf.extend_from_slice(line.as_bytes());
             }
-            else {
-                self.stream.write(format!("{}:{}\n", key, value).as_bytes()).await?;
-            }
-            idx += 1;
         }
 
         self.stream.write("\r\n\r\n".as_bytes()).await?;
+        if let Some(buf) = cache_buf.as_mut() {
+            buf.extend_from_slice("\r\n\r\n".as_bytes());
+        }
 
         loop {
-            let mut buff = [0; 256 * 1024];
+            let mut buff = [0; 1 * 1024];
             let read_size = res.read(&mut buff)?;
             if read_size == 0 {
-                return Ok(());
+                break;
             }
             self.stream.write(&buff[0..read_size]).await?;
+            if let Some(buf) = cache_buf.as_mut() {
+                buf.extend_from_slice(&buff[0..read_size]);
+            }
         }
+
+        if let (Some(buf), Some(final_path)) = (cache_buf, cache_path) {
+            let _ = Cache::write(&buf, &final_path);
+        }
+
+        Ok(())
     }
 }

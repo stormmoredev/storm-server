@@ -8,12 +8,10 @@ mod php_response;
 use std::collections::HashMap;
 use std::io;
 use std::io::Read;
-use crate::conf::Conf;
-use crate::server::http_server::request::Request;
 
 pub struct Response {
     status: u32,
-    content_size: Option<u64>,
+    //content_size: Option<u64>,
     headers: HashMap<String, String>,
     content: Box<dyn Read + Send>
 }

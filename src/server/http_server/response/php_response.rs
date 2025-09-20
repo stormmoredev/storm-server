@@ -1,12 +1,10 @@
+use crate::php::Php;
+use crate::server::http_server::request::Request;
+use crate::server::http_server::response::Response;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufReader};
-use std::sync::Arc;
-use crate::server::http_server::request::Request;
-use crate::server::http_server::response::Response;
-use crate::logger::Logger;
-use crate::php::Php;
+use std::io::BufReader;
 
 impl Response {
     pub async fn php(request: &mut Request, php: Php) -> Result<Response, Box<dyn Error>> {
@@ -16,8 +14,7 @@ impl Response {
                     Ok(response) => {
                        Ok(Response {
                            status: response.status(),
-                           headers: response.headers(), 
-                           content_size: None,
+                           headers: response.headers(),
                            content: Box::new(response)
                        })
                     },
@@ -41,7 +38,6 @@ impl Response {
 
         Response {
             status: 200,
-            content_size: None,
             headers,
             content: file_reader
         }

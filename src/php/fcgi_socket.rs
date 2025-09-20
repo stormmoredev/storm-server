@@ -12,10 +12,10 @@ fn create_local_tcp_stream(port: u16) -> Box<dyn FcgiStream> {
 
 #[cfg(unix)]
 pub mod fcgi_socket {
-    use std::error::Error;
-    use std::os::unix::net::{UnixStream};
-    use std::process::exit;
     use crate::php::fcgi_socket::{create_local_tcp_stream, FcgiStream};
+    use std::error::Error;
+    use std::os::unix::net::UnixStream;
+    use std::process::exit;
 
     impl FcgiStream for UnixStream {}
     pub fn get_socket(port: &Option<u16>, socket: &Option<String>) ->  Result<Box<dyn FcgiStream>, Box<dyn Error>> {
@@ -36,12 +36,11 @@ pub mod fcgi_socket {
 
 #[cfg(windows)]
 pub mod fcgi_socket {
-    use std::error::Error;
-    use std::net::TcpStream;
-    use std::process::exit;
     use crate::php::fcgi_socket::{create_local_tcp_stream, FcgiStream};
+    use std::error::Error;
+    use std::process::exit;
 
-    pub fn get_socket(port: &Option<u16>, socket: &Option<String>) ->  Result<Box<dyn FcgiStream>, Box<dyn Error>> {
+    pub fn get_socket(port: &Option<u16>, _socket: &Option<String>) ->  Result<Box<dyn FcgiStream>, Box<dyn Error>> {
         if port.is_some() {
             return Ok(create_local_tcp_stream(port.unwrap()))
         }

@@ -1,8 +1,8 @@
-use std::process::Command;
-use std::{process, thread};
-use port_check::{free_local_port_in_range, is_local_port_free};
 use crate::conf::Conf;
 use crate::php::fcgi_client::FcgiClient;
+use port_check::is_local_port_free;
+use std::process::Command;
+use std::{process, thread};
 
 mod fcgi_response;
 mod fcgi_client;
@@ -73,7 +73,7 @@ impl Php {
             .args(["-v"])
             .output()
         {
-            Ok(output) => {
+            Ok(_) => {
                 thread::spawn(move || {
                     let address = format!("127.0.0.1:{}", port);
                     let _ = Command::new("php-cgi")
@@ -82,7 +82,7 @@ impl Php {
                 });
                 true
             },
-            Err(msg) => false
+            Err(_) => false
         }
     }
 }

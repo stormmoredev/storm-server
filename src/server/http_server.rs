@@ -1,15 +1,13 @@
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch::Receiver;
-use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
 use uuid::Uuid;
-use crate::server::cache::CacheStatistic;
 use crate::conf::Conf;
 use request::Request;
 use crate::logger::Logger;
@@ -18,6 +16,7 @@ use crate::server::http_server::cert::build_tls_config;
 use crate::server::http_server::response::Response;
 use crate::server::http_stream::{HttpStream};
 use crate::php::Php;
+use crate::server::cache::Cache;
 use crate::server::http_server::http_server_socket::HttpServerSocket;
 
 pub mod request;
@@ -28,15 +27,12 @@ pub mod http_server_socket;
 
 pub struct HttpServer {
     hosts_configuration: Arc<Vec<Conf>>,
-    cache_stats: Arc<Mutex<CacheStatistic>>
 }
 
 impl HttpServer {
     pub fn new(conf: Vec<Conf>) -> HttpServer {
-        let cache_stats = Arc::new(Mutex::new(CacheStatistic::new()));
         HttpServer {
-            hosts_configuration: Arc::new(conf),
-            cache_stats
+            hosts_configuration: Arc::new(conf)
         }
     }
 
@@ -66,12 +62,13 @@ impl HttpServer {
         }
 
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        let ip = address.ip();
         let listener = match TcpListener::bind(address).await {
             Ok(l) => l,
-            Err(e) => return Err(format!("Could not bind to {}", address).as_str())?
+            Err(_) => return Err(format!("Could not bind to {}", address).as_str())?
         };
         let protocol = if conf.https_enabled { "Https" } else { "Http" };
-        server_logger.log_i(format!("{} server listening on port {}", protocol, conf.port).as_str());
+        server_logger.log_i(format!("{} server listening on  {}:{}", protocol, ip, conf.port).as_str());
 
         let server_logger = Arc::new(server_logger);
 
@@ -143,7 +140,7 @@ async fn accept_request(addr: SocketAddr,
             return;
         }
         (None, 1) => confs.get(0),
-        (Some(h), 1) => confs.get(0),
+        (Some(_), 1) => confs.get(0),
         (Some(h), _) => {
             let conf = confs.iter().find(|x| x.domain.eq(h.1));
             if conf.is_none() {
@@ -161,7 +158,7 @@ async fn accept_request(addr: SocketAddr,
 
     if conf.load_balancing_enabled {
         let dispatcher = Arc::new(Mutex::new(Dispatcher::new(&conf)));
-        match dispatch_request(http_stream, dispatcher).await {
+        match dispatch_request(http_stream, dispatcher, conf).await {
             Ok(_) => server_logger.log_d("Request passed upstream successfully!"),
             Err(e) => server_logger.log_e(format!("Could not transfer stream. {}", e).as_str()),
         }
@@ -185,6 +182,16 @@ async fn handle_request(
     let id = Uuid::new_v4();
     logger.log_i(format!("{}| Request {} {}", id, request.method(), request.query_path()).as_str());
 
+    let req_path = request.path().to_string();
+    let req_query_path = request.query_path().to_string();
+    match Cache::try_serve_cached(request.stream_mut(), &req_path, &req_query_path, conf).await {
+        Ok(res) if res => {
+            logger.log_i(format!("{}| Request succeed [CACHE]", id).as_str());
+            return Ok(());
+        }
+        _ => { /* continue processing */ }
+   };
+
     let response = match create_response(&mut request, conf).await {
         Ok(response) => response,
         Err(e) => {
@@ -193,7 +200,7 @@ async fn handle_request(
         }
     };
 
-    if let Err(e) = request.output_response(response).await {
+    if let Err(e) = request.output_response(response, conf).await {
         logger.log_e(format!("{}| Request failed| {}", id, e).as_str());
         return Err(e);
     }
@@ -234,7 +241,14 @@ async fn get_file_path_response(request: &mut Request, conf: &Conf) -> Result<Re
 }
 
 async fn dispatch_request(mut downstream: HttpStream,
-                          dispatcher: Arc<Mutex<Dispatcher>>) -> Result<(), Box<dyn Error>> {
+                          dispatcher: Arc<Mutex<Dispatcher>>,
+                          conf: &Conf) -> Result<(), Box<dyn Error>> {
+    let ds_path = downstream.path().to_string();
+    let ds_query_path = downstream.query_path().to_string();
+    match Cache::try_serve_cached(&mut downstream, &ds_path, &ds_query_path, conf).await {
+        Ok(res) if res => return Ok(()),
+        _ => { /* continue processing */ }
+    }
     let endpoint = match dispatcher.lock().unwrap().get() {
         Some(e) => e,
         None => return Err("No endpoint to handle request")?
@@ -256,13 +270,59 @@ async fn dispatch_request(mut downstream: HttpStream,
         break;
     }
 
+    let mut resp_buf: Vec<u8> = Vec::new();
+    let mut headers_parsed = false;
+    let mut cache_path: Option<PathBuf> = None;
+
     loop {
-        let mut buff = [0; 4 * 1024];
+        let mut buff = [0; 1 * 1024];
         let read_size = upstream.read(&mut buff).await?;
         if read_size == 0 {
             break;
         }
-        downstream.write(&buff[0..read_size]).await?;
+
+        if conf.cache_enabled && !headers_parsed {
+            resp_buf.extend_from_slice(&buff[..read_size]);
+            if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                let header_end = pos + 4;
+                let (header_bytes, _) = resp_buf.split_at(header_end);
+                let header_str = String::from_utf8_lossy(header_bytes);
+                let mut lines = header_str.lines();
+                let first_line = lines.next().unwrap_or_default().to_string();
+                let mut headers: Vec<(String, String)> = lines
+                    .filter(|l| !l.is_empty())
+                    .filter_map(|line| {
+                        line.find(':').map(|idx| (
+                            line[..idx].to_string(),
+                            line[idx + 1..].trim().to_string(),
+                        ))
+                    })
+                    .collect();
+                cache_path = Cache::process_headers(&mut headers, conf);
+                headers_parsed = true;
+
+                let body = resp_buf[header_end..].to_vec();
+                resp_buf.clear();
+                resp_buf.extend_from_slice(first_line.as_bytes());
+                resp_buf.extend_from_slice(b"\r\n");
+                for (name, value) in headers {
+                    let header_line = format!("{}: {}\r\n", name, value);
+                    resp_buf.extend_from_slice(header_line.as_bytes());
+                }
+                resp_buf.extend_from_slice(b"\r\n");
+                resp_buf.extend_from_slice(&body);
+
+                downstream.write(&resp_buf).await?;
+            }
+        } else {
+            downstream.write(&buff[0..read_size]).await?;
+            if cache_path.is_some() {
+                resp_buf.extend_from_slice(&buff[..read_size]);
+            }
+        }
+    }
+    if let Some(path) = cache_path {
+        let _ = Cache::write(&resp_buf, &path);
     }
 
     Ok(())

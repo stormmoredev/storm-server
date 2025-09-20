@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-use std::io::{Read, Write, Result, Error, ErrorKind};
-use std::net::TcpStream;
 use crate::php::fcgi_socket::FcgiStream;
+use std::collections::HashMap;
+use std::io::{Read, Result};
 
 pub struct FcgiResponse {
     status: u32,

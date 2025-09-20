@@ -1,12 +1,12 @@
-use crate::conf::Conf;
+use crate::conf::args::args_parser::{ArgKind, ArgsParser};
 use crate::conf::conf_error::ConfError;
+use crate::conf::Conf;
 use std::error::Error;
-use std::{env, fs, u16, u64};
 use std::net::{IpAddr, SocketAddr};
-use std::path::{Path};
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use crate::conf::args::args_parser::{ArgKind, ArgsParser};
+use std::{env, fs, u16, u64};
 
 pub struct ConfBuilder { }
 
@@ -34,7 +34,10 @@ impl ConfBuilder {
             logs_min_level: "info".to_string(),
             logs_dir: None,
             load_balancing_enabled: false,
-            load_balancing_servers: Vec::new()
+            load_balancing_servers: Vec::new(),
+            cache_enabled: false,
+            cache_dir: None,
+            cache_patterns: Vec::new(),
         };
 
         Self::parse_args(&mut conf, args)?;
@@ -131,7 +134,11 @@ impl ConfBuilder {
                 if path.exists() && path.is_dir() {
                     conf.logs_dir = Some(path.into());
                 } else {
-                    return Err(format!("Invalid log dir. Line no. {}", line_no))?;
+                    if let Some(parent) = path.parent() {
+                        if fs::create_dir_all(parent).is_err() {
+                            return Err(format!("Invalid log dir. Line no. {}", line_no))?;
+                        }
+                    }
                 }
             }
 
@@ -180,6 +187,21 @@ impl ConfBuilder {
                 conf.php_socket = Some(value.to_string());
             }
 
+            if key == "cache.enabled" {
+                conf.cache_enabled = enabled_values.contains(&value.to_lowercase().as_str());
+            }
+            if key == "cache.dir" {
+                let path = Path::new(value);
+                if path.exists() && path.is_dir() {
+                    conf.cache_dir = Some(path.into());
+                } else {
+                    return Err(format!("Invalid cache dir. Line no. {}", line_no))?;
+                }
+            }
+            if key == "cache.pattern" {
+                conf.cache_patterns.push(value.to_string());
+            }
+
             line_no += 1;
         }
 
@@ -204,19 +226,12 @@ impl ConfBuilder {
     fn parse_usize(value: &str, msg: &str) -> Result<usize, Box<dyn Error>> {
         match value.parse::<usize>() {
             Ok(p) => Ok(p),
-            Err(error) => Err(error)?
+            Err(_) => Err(msg)?
         }
     }
 
     fn parse_u16(value: &str, msg: &str) -> Result<u16, Box<dyn Error>> {
         match value.parse::<u16>() {
-            Ok(p) => Ok(p),
-            Err(error) => Err(error)?
-        }
-    }
-
-    fn parse_i16(value: &str, msg: &str) -> Result<i16, Box<dyn Error>> {
-        match value.parse::<i16>() {
             Ok(p) => Ok(p),
             Err(_) => Err(msg)?
         }

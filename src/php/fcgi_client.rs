@@ -1,10 +1,9 @@
-use std::error::Error;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-use crate::server::http_server::request::Request;
 use crate::php::fcgi_response::FcgiResponse;
 use crate::php::fcgi_socket::fcgi_socket::get_socket;
 use crate::php::fcgi_socket::FcgiStream;
+use crate::server::http_server::request::Request;
+use std::error::Error;
+use std::io::Write;
 
 const FCGI_VERSION: u8 = 1;
 const FCGI_BEGIN_REQUEST: u8 = 1;

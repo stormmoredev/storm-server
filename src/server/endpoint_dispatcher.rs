@@ -1,5 +1,5 @@
-use std::net::SocketAddr;
 use crate::conf::Conf;
+use std::net::SocketAddr;
 
 pub struct Dispatcher {
     endpoints: Vec<SocketAddr>,

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::io;
-use std::io::{Read, Write};
-use std::net::SocketAddr;
+use std::io::Write;
 use crate::server::http_server::http_server_socket::HttpServerSocket;
 
 pub struct HttpStream {

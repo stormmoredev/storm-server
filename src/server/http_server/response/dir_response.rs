@@ -1,9 +1,9 @@
+use crate::conf::Conf;
+use crate::server::http_server::response::string_reader::StringReader;
+use crate::server::http_server::response::Response;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use urlencoding::encode;
-use crate::conf::Conf;
-use crate::server::http_server::response::Response;
-use crate::server::http_server::response::string_reader::StringReader;
 
 struct DirItem {
     pub name: String,
@@ -82,7 +82,6 @@ impl Response {
         Response {
             status: 200,
             headers,
-            content_size: Some(body.len() as u64),
             content: Box::new(StringReader::new(body))
         }
     }

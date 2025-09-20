@@ -1,10 +1,10 @@
+use crate::server::http_server::response::mime::get_mime;
+use crate::server::http_server::response::Response;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-use crate::server::http_server::response::mime::get_mime;
-use crate::server::http_server::response::Response;
 
 impl Response {
     pub fn file(path: &PathBuf) -> Response {
@@ -21,7 +21,6 @@ impl Response {
 
         Response {
             status: 200,
-            content_size: Some(size),
             headers,
             content: file_reader
         }
