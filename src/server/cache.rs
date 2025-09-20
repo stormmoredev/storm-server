@@ -1,4 +1,4 @@
-use std::fs::{self, remove_file, File, OpenOptions};
+use std::fs::{self, remove_file, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use fd_lock::RwLock;
